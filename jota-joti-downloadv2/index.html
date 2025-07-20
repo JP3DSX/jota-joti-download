@@ -132,8 +132,7 @@
 
             if (snap.exists() && snap.data().enabled) {
                 // カウントをインクリメント
-                //await updateDoc(docRef, { count: increment(1) });
-                keywordInput.value = "";
+                await updateDoc(docRef, { count: increment(1) });                keywordInput.value = "";
                 const path = snap.data().imagePath;
                 const url = `${path}?v=${Math.random().toString(36).slice(2, 8)}`;
                 const blob = await (await fetch(url)).blob();

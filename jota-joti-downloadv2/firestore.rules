@@ -2,19 +2,14 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /aikotoba/{keyword} {
-      // 合言葉の読み取りは全員OK
+      // 読み取りは全員 OK
       allow get, list: if true;
 
       // update は「count フィールドへのトランスフォームのみ」を許可
-      allow update: if
-        // 書き込もうとしているフィールドが count のみ
-        request.writeFields().hasOnly(['count'])
-        // トランスフォームが 1 件だけで、fieldPath が count
-        && request.updateTransforms.size() == 1
-        && request.updateTransforms[0].fieldPath == 'count';
-
-      // create / delete は管理者(Admin SDK)のみ許可
-      allow create, delete: if false;
+      allow update: if (request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['count']));
     }
+      // 管理用の create / delete は Admin SDK（サーバー）でのみ
+      allow create, delete: if false;
   }
 }
