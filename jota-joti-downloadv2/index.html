@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>JOTA-JOTIスタンプGET</title>
+    <!-- Tailwind CSS CDN -->
+    <!-- <script src="https://cdn.tailwindcss.com"></script> -->
+    <link href="/src/styles.css" rel="stylesheet">
+</head>
+
+<body class="bg-gray-50 min-h-screen flex items-center justify-center p-4">
+    <div class="relative w-full max-w-md p-6 bg-white rounded-2xl shadow-xl">
+        <img class="block mx-auto m-4 w-64" src="resources/SAJ_comlogo.png" alt="SAJロゴ" />
+        <h2 class="text-2xl font-bold text-center mb-6 text-gray-800">JOTA-JOTIスタンプGET</h2>
+        <!-- Honeypot フィールド（ボット防止） -->
+        <input type="text" id="honeypot" autocomplete="off" class="absolute left-[-9999px] top-[-9999px]" />
+        <div class="space-y-4">
+            <!-- 合言葉入力 -->
+            <input id="keyword" type="text"
+                class="text-center w-full px-4 py-2 border placeholder-gray-400 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 transition" />
+            <!-- 送信ボタン -->
+            <button id="submitBtn"
+                class="w-full py-2 bg-scoutpurple hover:bg-scoutpurple-600 text-white font-semibold rounded-lg transition-colors duration-300">
+            </button>
+        </div>
+        <!-- ローディングスピナー -->
+        <div id="spinner" class="hidden flex justify-center mt-6">
+            <svg class="w-8 h-8 text-blue-500 animate-spin" xmlns="https://www.w3.org/2000/svg" fill="none"
+                viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+            </svg>
+        </div>
+        <!-- プレビュー表示 -->
+        <div id="imageText" class="mt-6 text-center text-gray-700"></div>
+        <div id="imageContainer" class="mt-4"></div>
+        <!-- 結果表示 -->
+        <div id="result" class="mt-6 text-center text-gray-700"></div>
+        <img class="block mx-auto mt-4 w-64" src="resources/JJ-LOGO-2025.png" alt="JOTA-JOTIロゴ"/>
+    </div>
+
+    <script type="module">
+        const buttonColor = 'bg-scoutpurple';
+
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
+        import { getFirestore, doc, getDoc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
+
+        // Firebase 初期化
+        const firebaseConfig = {
+            apiKey: "AIzaSyCl9273bPZJO0K1h0chDHtm0JQHC7b8M90",
+            authDomain: "jota-joti-651ef.firebaseapp.com",
+            projectId: "jota-joti-651ef",
+            storageBucket: "jota-joti-651ef.appspot.com",
+            messagingSenderId: "734439270541",
+            appId: "1:734439270541:web:d4b67bf780ff4fbb4adac4"
+        };
+        initializeApp(firebaseConfig);
+
+        const aikotoba_str = "JID";
+        const opendoor = "とびらをあける"
+
+        const db = getFirestore();
+
+        // DOM 要素参照
+        const honeypot = document.getElementById('honeypot');
+        const keywordInput = document.getElementById('keyword');
+        const submitBtn = document.getElementById('submitBtn');
+        const spinner = document.getElementById('spinner');
+        const resultDiv = document.getElementById('result');
+        const imageContainer = document.getElementById('imageContainer');
+        const imageText = document.getElementById('imageText');
+
+        keywordInput.placeholder = `${aikotoba_str}をどうぞ`
+        submitBtn.textContent = `${opendoor}`
+
+        // クールダウン設定
+        const COOLDOWN = 10; // 秒
+        let lastRequest = Number(localStorage.getItem('lastReq')) || 0;
+
+        // クールダウン状態を初期化（リロード後も反映）
+        function initCooldown() {
+            const now = Date.now();
+            const elapsed = now - lastRequest;
+            if (elapsed < COOLDOWN * 1000) {
+                let count = Math.ceil((COOLDOWN * 1000 - elapsed) / 1000);
+                submitBtn.disabled = true;
+                submitBtn.classList.replace(buttonColor, 'bg-gray-400');
+                submitBtn.classList.remove(`hover:${buttonColor}-600`);
+                submitBtn.classList.add('cursor-not-allowed');
+                submitBtn.textContent = `ちょっと待とう：${count}秒`;
+                const timer = setInterval(() => {
+                    count--;
+                    if (count <= 0) {
+                        clearInterval(timer);
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = 'とびらをたたく';
+                        submitBtn.classList.replace('bg-gray-400', buttonColor);
+                        submitBtn.classList.add(`hover:${buttonColor}-600`);
+                        submitBtn.classList.remove('cursor-not-allowed');
+                    } else {
+                        submitBtn.textContent = `ちょっと待とう：${count}秒`;
+                    }
+                }, 1000);
+            }
+        }
+
+        // メイン処理
+        async function checkKeyword() {
+            // ボット対策
+            if (honeypot.value) return;
+
+            // クールダウン開始
+            lastRequest = Date.now();
+            localStorage.setItem('lastReq', lastRequest);
+            initCooldown();
+
+            // UI リセット + スピナー表示
+            resultDiv.textContent = '';
+            imageContainer.innerHTML = '';
+            spinner.classList.remove('hidden');
+
+            // Firestore チェック
+            const keyword = keywordInput.value.trim();
+            if (!keyword) { spinner.classList.add('hidden'); resultDiv.textContent = `${aikotoba_str}を入力してください`; return; }
+            const docRef = doc(db, 'aikotoba', keyword)
+            const snap = await getDoc(docRef);
+            spinner.classList.add('hidden');
+
+            if (snap.exists() && snap.data().enabled) {
+                // カウントをインクリメント
+                //await updateDoc(docRef, { count: increment(1) });
+                keywordInput.value = "";
+                const path = snap.data().imagePath;
+                const url = `${path}?v=${Math.random().toString(36).slice(2, 8)}`;
+                const blob = await (await fetch(url)).blob();
+                const blobUrl = URL.createObjectURL(blob);
+
+                // プレビュー
+                imageText.textContent = '~スタンプのプレビュー~'
+                const img = document.createElement('img');
+                img.src = blobUrl; img.alt = 'プレビュー';
+                img.className = 'block mx-auto mt-4 rounded-lg shadow-lg max-w-full';
+                imageContainer.appendChild(img);
+                // ダウンロードリンク表示
+                resultDiv.innerHTML = `
+          <a href="${blobUrl}" download class="inline-block bg-green-500 hover:bg-green-600 text-white font-medium px-6 py-2 rounded-lg transition-all duration-300 animate-pulse">
+            📥 手動ダウンロード
+          </a>
+        `;
+                // ダウンロード
+                const a = document.createElement('a'); a.href = blobUrl;
+                a.download = path.split('/').pop(); a.style.display = 'none';
+                document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                setTimeout(() => { imageText.textContent = ''; resultDiv.textContent = '魔法が切れました。またどうぞ。'; imageContainer.innerHTML = ''; URL.revokeObjectURL(blobUrl); }, 5000);
+            } else {
+                resultDiv.textContent = `${aikotoba_str}がちがうよ`;
+            }
+
+        }
+
+        // ページロード時にクールダウン初期化
+        window.addEventListener('DOMContentLoaded', initCooldown);
+        submitBtn.addEventListener('click', checkKeyword);
+    </script>
+</body>
+
+</html>

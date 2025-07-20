@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta name="robots" content="noindex,nofollow" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JOTA-JOTIスタンプGET</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-100 min-h-screen flex items-center justify-center">
+  <div class="w-full max-w-md p-6 bg-white rounded-2xl shadow-xl">
+    <h2 class="text-2xl font-bold text-center mb-6 text-gray-800">JOTA-JOTIスタンプGET</h2>
+    <div class="space-y-4">
+      <input type="text" id="honeypot" autocomplete="off" style="position:absolute; left:-9999px; top:-9999px;" />
+      <input id="keyword" type="text" placeholder="あいことばをどうぞ！"
+        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 transition" />
+      <button id="submitBtn" onclick="checkKeyword()"
+        class="w-full py-2 bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded-lg transition-colors duration-300">とびらをたたく</button>
+    </div>
+
+    <!-- Spinner -->
+    <div id="spinner" class="hidden flex justify-center mt-4">
+      <svg class="w-8 h-8 text-blue-500 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none"
+        viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+      </svg>
+    </div>
+    <div id="result" class="mt-6 text-center text-gray-700"></div>
+    <div id="imageContainer" class="mt-4"></div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
+    import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
+
+    // Firebase初期化
+    const firebaseConfig = {
+      apiKey: "AIzaSyCl9273bPZJO0K1h0chDHtm0JQHC7b8M90",
+      authDomain: "jota-joti-651ef.firebaseapp.com",
+      projectId: "jota-joti-651ef",
+      storageBucket: "jota-joti-651ef.firebasestorage.app",
+      messagingSenderId: "734439270541",
+      appId: "1:734439270541:web:d4b67bf780ff4fbb4adac4",
+      measurementId: "G-YKK86RWFYE"
+    };
+    initializeApp(firebaseConfig);
+    const db = getFirestore();
+
+    // DOM要素取得
+    const spinner = document.getElementById('spinner');
+    const submitBtn = document.getElementById('submitBtn');
+    const resultDiv = document.getElementById('result');
+    const imageContainer = document.getElementById('imageContainer');
+
+    // Honeypot & クールダウン用変数
+    let lastRequest = parseInt(localStorage.getItem('lastReq') || '0', 10);
+    const COOLDOWN = 10; // 秒
+
+    function canRequest() {
+      return (Date.now() - lastRequest) > COOLDOWN * 1000;
+    }
+
+    window.checkKeyword = async function () {
+      // 1) Honeypotチェック
+      if (document.getElementById('honeypot').value) {
+        console.warn('Bot detected via honeypot');
+        return;
+      }
+      // 空チェック
+      if (document.getElementById('keyword').value === null) {
+        resultDiv.textContent = 'あいことばがきこえないよ？何か言わないと。'
+        return;
+      }
+
+      // 2) クールダウンチェック
+      const now = Date.now();
+      if (!canRequest()) {
+        const wait = Math.ceil((COOLDOWN * 1000 - (now - lastRequest)) / 1000);
+        resultDiv.textContent = `${wait}秒後にもう一度聞いてみよう。`;
+        let remaining = wait;
+        submitBtn.disabled = true;
+        submitBtn.textContent = `ちょっと待とう：${remaining}秒`;
+        submitBtn.classList.remove('bg-blue-500', 'hover:bg-blue-600');
+        submitBtn.classList.add('bg-gray-400', 'cursor-not-allowed');
+        const timer = setInterval(() => {
+          remaining--;
+          if (remaining <= 0) {
+            clearInterval(timer);
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'とびらをたたく';
+            submitBtn.classList.remove('bg-gray-400', 'cursor-not-allowed');
+            submitBtn.classList.add('bg-blue-500', 'hover:bg-blue-600');
+          } else {
+            submitBtn.textContent = `ちょっと待とう：${remaining}秒`;
+            submitBtn.classList.remove('bg-blue-500', 'hover:bg-blue-600');
+            submitBtn.classList.add('bg-gray-400', 'cursor-not-allowed');
+          }
+        }, 1000);
+        return;
+      }
+
+      // 3) クールダウン開始
+      lastRequest = now;
+      localStorage.setItem('lastReq', lastRequest);
+      submitBtn.disabled = true;
+      let remaining = COOLDOWN;
+      submitBtn.textContent = `ちょっと待とう：${remaining}秒`;
+      submitBtn.classList.remove('bg-blue-500', 'hover:bg-blue-600');
+      submitBtn.classList.add('bg-gray-400', 'cursor-not-allowed');
+      const timer = setInterval(() => {
+        remaining--;
+        if (remaining <= 0) {
+          clearInterval(timer);
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'とびらをたたく';
+          submitBtn.classList.remove('bg-gray-400', 'cursor-not-allowed');
+          submitBtn.classList.add('bg-blue-500', 'hover:bg-blue-600');
+        } else {
+          submitBtn.textContent = `ちょっと待とう：${remaining}秒`;
+          submitBtn.classList.remove('bg-blue-500', 'hover:bg-blue-600');
+          submitBtn.classList.add('bg-gray-400', 'cursor-not-allowed');
+        }
+      }, 1000);
+
+      // 4) UIリセット＆スピナーON
+      resultDiv.textContent = '';
+      imageContainer.innerHTML = '';
+      spinner.classList.remove('hidden');
+
+      // 5) Firestoreチェック
+      const keyword = document.getElementById("keyword").value.trim();
+      const ref = doc(db, "aikotoba", keyword);
+      const snap = await getDoc(ref);
+
+      // 6) スピナーOFF
+      spinner.classList.add('hidden');
+
+      if (snap.exists() && snap.data().enabled) {
+        // 7) 画像取得＋プレビュー＋自動ダウンロード
+        const imagePath = snap.data().imagePath;
+        const imageUrl = `${imagePath}?v=${Math.random().toString(36).slice(2, 8)}`;
+        const res = await fetch(imageUrl);
+        const blob = await res.blob();
+        const blobUrl = URL.createObjectURL(blob);
+
+        // プレビュー表示
+        const img = document.createElement("img");
+        img.src = blobUrl;
+        img.alt = "スタンププレビュー";
+        img.className = "block mx-auto mt-4 rounded-lg shadow-lg max-w-full";
+        imageContainer.appendChild(img);
+
+        // 自動ダウンロード
+        const a = document.createElement("a");
+        a.href = blobUrl;
+        a.download = imagePath.split("/").pop();
+        a.style.display = "none";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        // 8) 後片付け
+        setTimeout(() => {
+          resultDiv.textContent = '魔法が切れました。もう一度あいことばをどうぞ。';
+          imageContainer.innerHTML = '';
+          URL.revokeObjectURL(blobUrl);
+        }, 5000);
+      } else {
+        resultDiv.textContent = 'あいことばが違うよ？';
+      }
+    };
+  </script>
+
+</body>
+
+</html>
