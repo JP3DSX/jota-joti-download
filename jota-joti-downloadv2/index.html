@@ -80,6 +80,7 @@
         // クールダウン設定
         const COOLDOWN = 10; // 秒
         let lastRequest = Number(localStorage.getItem('lastReq')) || 0;
+        let cooldownTimer = null;
 
         // クールダウン状態を初期化（リロード後も反映）
         function initCooldown() {
@@ -92,10 +93,12 @@
                 submitBtn.classList.remove(`hover:${buttonColor}-600`);
                 submitBtn.classList.add('cursor-not-allowed');
                 submitBtn.textContent = `ちょっと待とう：${count}秒`;
-                const timer = setInterval(() => {
+                if (cooldownTimer) clearInterval(cooldownTimer);
+                cooldownTimer = setInterval(() => {
                     count--;
                     if (count <= 0) {
-                        clearInterval(timer);
+                        clearInterval(cooldownTimer);
+                        cooldownTimer = null;
                         submitBtn.disabled = false;
                         submitBtn.textContent = 'とびらをたたく';
                         submitBtn.classList.replace('bg-gray-400', buttonColor);
